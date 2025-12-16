@@ -40,10 +40,10 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         if "," in imagen_b64:
             imagen_b64 = imagen_b64.split(",")[1]
 
-        # 3. Configurar Modelo
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 3. Configurar Modelo (CORRECCIÓN AQUÍ: Usamos el alias más compatible)
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
-        # 4. Instrucciones para la IA (Prompt) - ACTUALIZADO CON LÓGICA DE COLOR
+        # 4. Instrucciones para la IA (Prompt) - LÓGICA DE COLOR VERDE INCLUIDA
         prompt = """
         Analiza esta Orden de Producción (imagen).
         
@@ -84,7 +84,7 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         ])
         
         # 6. Limpiar respuesta markdown
-        texto = response.text.replace('```json', '').replace('```', '').strip()
+        texto = response.text.replace('', '').strip()
         datos = json.loads(texto)
 
         return https_fn.Response(json.dumps({
