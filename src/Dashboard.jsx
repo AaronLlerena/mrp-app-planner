@@ -142,9 +142,8 @@ function Dashboard() {
 
   const procesarImagen = async (imagenBase64) => {
     setProcesando(true);
-    setMensaje(<span style={{display:'flex', alignItems:'center', color:'#e67e22', fontSize:'13px'}}>
-        <div className="spinner" style={{width:'14px', height:'14px', borderWidth:'2px'}}></div> Analizando OP con Gemini AI... ⚡
-    </span>);
+    // FIX: Mensaje como texto simple para no romper el .includes()
+    setMensaje("Analizando OP con Gemini AI... ⚡");
     addToLog("Subiendo imagen...");
     const startTime = performance.now();
 
@@ -166,7 +165,7 @@ function Dashboard() {
       addToLog(`Procesando JSON para OP: ${data.datos.numero_op || 'Desconocida'}`);
       
       agregarAlPlan(data.datos, imagenBase64);
-      setMensaje(`✅ OP ${data.datos.numero_op} OK!`); // Mensaje corto
+      setMensaje(`✅ OP ${data.datos.numero_op} OK!`); 
       addToLog(`Éxito: Se fusionaron ${data.datos.items?.length || 0} items.`);
       
     } catch (error) {
@@ -336,7 +335,10 @@ function Dashboard() {
             <div style={{background:'white', padding:'10px', borderRadius:'8px', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column', justifyContent:'center'}}>
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', alignItems:'center'}}>
                     <strong style={{color:'#2c3e50', fontSize:'13px'}}>📷 OPs Activas: {imagenesSubidas.length}</strong>
-                    <span style={{fontSize:'12px', color: mensaje.includes('❌')?'#e74c3c':'#27ae60', fontWeight:'bold'}}>
+                    
+                    {/* FIX: Renderizado seguro del mensaje + spinner condicional */}
+                    <span style={{fontSize:'12px', color: (typeof mensaje === 'string' && mensaje.includes('❌')) ? '#e74c3c' : (procesando ? '#e67e22' : '#27ae60'), fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px'}}>
+                        {procesando && <div className="spinner" style={{width:'12px', height:'12px', borderWidth:'2px', borderColor:'#e67e22', borderLeftColor:'transparent'}}></div>}
                         {mensaje}
                     </span>
                 </div>
