@@ -1,10 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-// *** ASEGÚRATE DE USAR A MAYÚSCULA AQUÍ ***
-import App from './App.jsx' 
+// Importa el nuevo nombre
+import MRP from './MRP.jsx' 
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    {/* Usa el nuevo nombre */}
+    <MRP />
   </React.StrictMode>,
 )
