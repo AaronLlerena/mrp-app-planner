@@ -6,13 +6,6 @@ import google.generativeai as genai
 
 initialize_app()
 
-# --- SEGURIDAD: Leer la clave desde Variables de Entorno ---
-API_KEY = os.environ.get("GEMINI_API_KEY")
-# -----------------------------------------------------------
-
-if API_KEY:
-    genai.configure(api_key=API_KEY)
-
 @https_fn.on_request(min_instances=0, max_instances=1)
 def procesar_op(req: https_fn.Request) -> https_fn.Response:
     headers = {
@@ -25,13 +18,13 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response('', status=204, headers=headers)
 
     try:
-        # 1. Verificación de Seguridad
-        if not API_KEY:
-            return https_fn.Response(json.dumps({
-                "error": "CRÍTICO: No se encontró la API Key. Asegúrate de tener el archivo .env configurado."
-            }), status=500, headers=headers)
+        # 1. Configuración Segura
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return https_fn.Response(json.dumps({"error": "Error: No API Key found."}), status=500, headers=headers)
 
-        # 2. Obtener datos
+        genai.configure(api_key=api_key)
+
         req_json = req.get_json()
         if not req_json or 'image' not in req_json:
             return https_fn.Response(json.dumps({"error": "Falta la imagen"}), status=400, headers=headers)
@@ -40,52 +33,52 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         if "," in imagen_b64:
             imagen_b64 = imagen_b64.split(",")[1]
 
-        # 3. Configurar Modelo (CORRECCIÓN AQUÍ: Usamos el alias más compatible)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # 2. Modelo Rápido
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 4. Instrucciones para la IA (Prompt) - LÓGICA DE COLOR VERDE INCLUIDA
+        # 3. Prompt Simplificado (Solo Datos, SIN colores)
         prompt = """
-        Analiza esta Orden de Producción (imagen).
+        Analiza esta Orden de Producción.
         
-        OBJETIVO: Extraer datos y DETECTAR STOCK POR COLOR.
+        OBJETIVO: Extraer datos estructurados de Insumos y Empaques.
         
-        REGLA DE COLOR (IMPORTANTE):
-        - Fíjate en el fondo de las filas de la tabla.
-        - Si una fila o el nombre del insumo está RESALTADO EN VERDE (o verde amarillento), significa que YA HAY STOCK.
-        - Marca el campo "tiene_stock_visual": true para esos items. Para el resto, false.
-
         REGLAS DE CLASIFICACIÓN:
-        - "INSUMO": Materias primas (ej: Colágeno, Maltodextrina, Ácido Cítrico).
-        - "EMPAQUE": Materiales de envase (ej: Potes, Tapas, Etiquetas, Termoencogibles).
+        - "INSUMO": Materias primas (ej: Colágeno, Saborizantes, Vitaminas).
+        - "EMPAQUE": Materiales de envase (ej: Potes, Tapas, Etiquetas).
         
-        REGLAS DE LIMPIEZA:
-        - Para "EMPAQUE": Concatena NOMBRE + OBSERVACIONES (separado por espacio).
-        - Para "INSUMO": Solo nombre normalizado.
+        REGLAS DE TEXTO:
+        - Para "EMPAQUE": Concatena NOMBRE + OBSERVACIONES en un solo string.
+        - Para "INSUMO": Solo el nombre normalizado.
         
-        JSON Estricto:
+        Responde SOLO con este JSON:
         {
             "numero_op": "00000",
             "items": [
                 {
-                    "nombre": "Nombre Limpio", 
+                    "nombre": "Nombre del Item", 
                     "cantidad": 0, 
                     "unidad": "kg/und", 
-                    "categoria": "INSUMO",
-                    "tiene_stock_visual": true/false
+                    "categoria": "INSUMO"
                 }
             ]
         }
         """
 
-        # 5. Generar
+        # 4. Generar
         response = model.generate_content([
             {'mime_type': 'image/jpeg', 'data': imagen_b64},
             prompt
         ])
         
-        # 6. Limpiar respuesta markdown
-        texto = response.text.replace('', '').strip()
-        datos = json.loads(texto)
+        texto = response.text.replace('```json', '').replace('```', '').strip()
+        
+        try:
+            datos = json.loads(texto)
+        except:
+            # Fallback simple
+            start = texto.find('{')
+            end = texto.rfind('}') + 1
+            datos = json.loads(texto[start:end])
 
         return https_fn.Response(json.dumps({
             "mensaje": f"¡OP {datos.get('numero_op', '???')} procesada!",
@@ -93,7 +86,4 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         }), status=200, headers=headers)
 
     except Exception as e:
-        return https_fn.Response(json.dumps({
-            "error": str(e),
-            "mensaje": "Error interno: " + str(e)
-        }), status=500, headers=headers)
+        return https_fn.Response(json.dumps({"error": str(e)}), status=500, headers=headers)

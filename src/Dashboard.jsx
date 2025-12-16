@@ -10,17 +10,16 @@ const SOCIAL_LINKS = {
     researchgate: "https://www.researchgate.net/"
 };
 
-// --- LOGICA DE NAVEGACIÓN POR TECLADO ---
+// --- NAVEGACIÓN TECLADO ---
 const handleKeyDown = (e, rowIndex, colName, inputsRef) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const direction = e.key === 'ArrowDown' ? 1 : -1;
-        // Buscamos el input de la misma columna en la fila siguiente/anterior
         const nextId = `input-${rowIndex + direction}-${colName}`;
         const nextElement = document.getElementById(nextId);
         if (nextElement) {
             nextElement.focus();
-            nextElement.select(); // Selecciona el texto para sobreescribir rápido
+            nextElement.select(); 
         }
     }
 };
@@ -48,14 +47,11 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
           <tbody>
             {datos.length === 0 ? <tr><td colSpan="8" style={{padding:'15px', textAlign:'center', color:'#aaa', fontStyle:'italic'}}>--- Sin datos ---</td></tr> : 
              datos.map((row, index) => {
-                const globalIndex = startIndex + index; // Índice único para navegación
+                const globalIndex = startIndex + index; 
                 const cantidadMostrar = filtroOP === "TODAS" ? row.cantidadTotal : (row.desglose[filtroOP] || 0);
                 
-                // LÓGICA: Si hay valor manual, úsalo. Si no, calcula.
                 const stock = parseFloat(row.stockPlanta) || 0;
                 const calculoAutomatico = Math.max(0, cantidadMostrar - stock);
-                
-                // Si el usuario escribió algo manual en 'aComprarManual', se usa eso. Si no, el cálculo.
                 const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : calculoAutomatico;
                 const cubierto = parseFloat(valorAComprar) <= 0;
 
@@ -78,7 +74,7 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
                                 style={{width:'100%', border:'1px solid #ddd', textAlign:'center', borderRadius:'3px', padding:'2px', fontSize:'12px'}} />
                         </td>
                         
-                        {/* A COMPRAR (AHORA EDITABLE) */}
+                        {/* A COMPRAR */}
                         <td style={{ padding: '4px', backgroundColor: cubierto ? '#f0fff4' : '#e8f8f5' }}>
                             <input type="number" 
                                 value={valorAComprar} 
@@ -141,7 +137,7 @@ function Dashboard() {
   const [filtroOC, setFiltroOC] = useState("TODAS");
   const [imagenModal, setImagenModal] = useState(null);
   
-  const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.0... OK`]);
+  const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.1 (Manual Mode)... OK`]);
   const [latency, setLatency] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
 
@@ -205,7 +201,6 @@ function Dashboard() {
       if(planProduccion.length === 0) return alert("No hay datos para exportar.");
       addToLog("Generando archivo XLS...");
       
-      // Creamos un contenido separado por tabulaciones (TSV) que Excel abre mejor que CSV simple
       const headers = ["Categoria\tNombre\tCantidad Total\tUnidad\tStock Planta\tA Comprar\tNumero OC\tEstado\tOPs Origen"];
       const rows = planProduccion.map(row => {
           const aComprarCalculado = Math.max(0, row.cantidadTotal - (parseFloat(row.stockPlanta)||0));
@@ -237,23 +232,13 @@ function Dashboard() {
     itemsNuevos.forEach(itemNuevo => {
         const nombreNorm = itemNuevo.nombre.trim().toUpperCase();
         const categoria = itemNuevo.categoria || "INSUMO";
-        const tieneStockVisual = itemNuevo.tiene_stock_visual === true; // Dato que viene de la IA
-
+        
         const indiceExistente = planActualizado.findIndex(p => p.nombre === nombreNorm);
 
         if (indiceExistente >= 0) {
             const item = planActualizado[indiceExistente];
             item.cantidadTotal += itemNuevo.cantidad;
             item.desglose[opId] = (item.desglose[opId] || 0) + itemNuevo.cantidad;
-            
-            // Si la NUEVA OP dice que tiene stock, sumamos al stock existente
-            if (tieneStockVisual) {
-                // Asumimos que si está en verde, cubre SU requerimiento completo
-                item.stockPlanta = (parseFloat(item.stockPlanta) || 0) + itemNuevo.cantidad;
-                // Si la OC estaba vacía, sugerimos no comprar. Si ya tenía número, no lo tocamos para no borrar historial.
-                if (!item.numeroOC) item.numeroOC = "No comprar"; 
-            }
-
             if (!item.opsAsociadas.includes(opId)) item.opsAsociadas.push(opId);
         } else {
             planActualizado.push({
@@ -262,10 +247,9 @@ function Dashboard() {
                 cantidadTotal: itemNuevo.cantidad,
                 desglose: { [opId]: itemNuevo.cantidad },
                 unidad: itemNuevo.unidad,
-                // LÓGICA DE STOCK AUTOMÁTICO
-                stockPlanta: tieneStockVisual ? itemNuevo.cantidad : 0, 
-                // LÓGICA DE OC AUTOMÁTICA
-                numeroOC: tieneStockVisual ? "No comprar" : "",
+                // VALORES POR DEFECTO MANUALES (SIN MAGIA DE COLORES)
+                stockPlanta: 0, 
+                numeroOC: "",
                 estado: "Pendiente", 
                 fechaEntrega: "",
                 opsAsociadas: [opId]
@@ -282,7 +266,7 @@ function Dashboard() {
     const startTime = performance.now();
 
     try {
-      addToLog("Solicitando análisis a Gemini 1.5 Flash...");
+      addToLog("Solicitando análisis a Gemini AI...");
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
