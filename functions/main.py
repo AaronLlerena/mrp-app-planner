@@ -34,23 +34,24 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
 
         model = genai.GenerativeModel('gemini-flash-latest')
         
-        # --- PROMPT MEJORADO PARA DETECTAR EMPAQUES ---
+        # --- PROMPT MEJORADO: CATEGORÍAS Y LIMPIEZA ---
         prompt = """
-        Analiza esta imagen de una Orden de Producción.
-        Extrae el NÚMERO DE OP y la lista de insumos/materiales.
+        Analiza esta Orden de Producción. Extrae: NÚMERO OP y lista de items.
         
-        REGLA IMPORTANTE PARA MATERIALES DE EMPAQUE:
-        Si detectas una tabla de materiales de empaque, en el campo "nombre" concatena el NOMBRE + OBSERVACIONES (ej: "Envase HDPE + Color Blanco").
-        
-        Devuelve JSON estricto:
+        REGLAS CLAVE:
+        1. Clasifica cada item en "categoria": "INSUMO" (materia prima) o "EMPAQUE" (material de envase).
+        2. Para EMPAQUES: Concatena NOMBRE y OBSERVACIONES en el campo "nombre", separados solo por espacio. NO USES el símbolo "+" para unir.
+           Ejemplo correcto: "Pote HDPE Color Blanco".
+           Ejemplo incorrecto: "Pote HDPE + Color Blanco".
+        3. Normaliza nombres: "Maltodextrina" y "MALTODEXTRINA" deben ser iguales (usa mayúsculas).
+
+        JSON Estricto:
         {
             "numero_op": "00000",
-            "producto": "Nombre del producto",
-            "insumos": [
-                {"nombre": "Nombre Insumo Completo", "cantidad": 0, "unidad": "kg/und"}
+            "items": [
+                {"nombre": "NOMBRE LIMPIO", "cantidad": 0, "unidad": "kg/und", "categoria": "INSUMO"}
             ]
         }
-        Responde SOLO con el JSON.
         """
 
         response = model.generate_content([
