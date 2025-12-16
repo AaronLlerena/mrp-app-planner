@@ -71,7 +71,7 @@ function App() {
       {error && <div style={{ color: 'red', border: '1px solid red', padding: '10px' }}>{error}</div>}
 
       {inventario.length === 0 && !error ? (
-          <p>No se encontraron insumos. ¡Asegúrate de que la colección 'Inventario' tenga datos!</p>
+          <p>No se encontraron insumos. ¡Asegúrate de que la colección 'Inventario' tenga datos!!!</p>
       ) : (
           <div style={styles.cardContainer}>
             {inventario.map(item => (
