@@ -1,9 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import MRP from './Planner.jsx' // <--- DEBE SER ASÍ
+import Dashboard from './Dashboard.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <MRP />
+    <Dashboard />
   </React.StrictMode>,
 )
