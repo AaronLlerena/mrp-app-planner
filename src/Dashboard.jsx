@@ -10,8 +10,23 @@ const SOCIAL_LINKS = {
     researchgate: "https://www.researchgate.net/"
 };
 
-// --- COMPONENTE TABLA (EXTRAÍDO PARA EVITAR EL PARPADEO) ---
-const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, actualizarNombre }) => (
+// --- LOGICA DE NAVEGACIÓN POR TECLADO ---
+const handleKeyDown = (e, rowIndex, colName, inputsRef) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const direction = e.key === 'ArrowDown' ? 1 : -1;
+        // Buscamos el input de la misma columna en la fila siguiente/anterior
+        const nextId = `input-${rowIndex + direction}-${colName}`;
+        const nextElement = document.getElementById(nextId);
+        if (nextElement) {
+            nextElement.focus();
+            nextElement.select(); // Selecciona el texto para sobreescribir rápido
+        }
+    }
+};
+
+// --- COMPONENTE TABLA ---
+const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, actualizarNombre, startIndex }) => (
     <div style={{marginBottom:'20px', borderRadius:'6px', overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.2)'}}>
         <div style={{backgroundColor: colorHeader, color:'white', padding:'8px 15px', fontWeight:'bold', display:'flex', justifyContent:'space-between', fontSize:'14px'}}>
             <span>{titulo}</span>
@@ -23,8 +38,8 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
               <th style={{ padding: '8px' }}>NOMBRE (Editable)</th>
               <th style={{ padding: '8px' }}>REQ. {filtroOP==="TODAS"?"TOTAL":filtroOP}</th>
               <th style={{ padding: '8px', width:'70px', backgroundColor:'#fff9c4' }}>STOCK</th>
-              <th style={{ padding: '8px' }}>A COMPRAR</th>
-              <th style={{ padding: '8px', width:'60px' }}># OC</th>
+              <th style={{ padding: '8px', width:'80px', backgroundColor:'#e8f8f5' }}>A COMPRAR</th>
+              <th style={{ padding: '8px', width:'80px' }}># OC</th>
               <th style={{ padding: '8px' }}>F. ENTREGA</th>
               <th style={{ padding: '8px' }}>ESTATUS</th>
               <th style={{ padding: '8px' }}>ORIGEN</th>
@@ -33,33 +48,69 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
           <tbody>
             {datos.length === 0 ? <tr><td colSpan="8" style={{padding:'15px', textAlign:'center', color:'#aaa', fontStyle:'italic'}}>--- Sin datos ---</td></tr> : 
              datos.map((row, index) => {
+                const globalIndex = startIndex + index; // Índice único para navegación
                 const cantidadMostrar = filtroOP === "TODAS" ? row.cantidadTotal : (row.desglose[filtroOP] || 0);
+                
+                // LÓGICA: Si hay valor manual, úsalo. Si no, calcula.
                 const stock = parseFloat(row.stockPlanta) || 0;
-                const aComprar = Math.max(0, cantidadMostrar - stock);
-                const cubierto = aComprar <= 0;
+                const calculoAutomatico = Math.max(0, cantidadMostrar - stock);
+                
+                // Si el usuario escribió algo manual en 'aComprarManual', se usa eso. Si no, el cálculo.
+                const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : calculoAutomatico;
+                const cubierto = parseFloat(valorAComprar) <= 0;
 
                 return (
                     <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: cubierto ? '#f0fff4' : 'white' }}>
                         <td style={{ padding: '5px' }}>
                             <input type="text" value={row.nombre} onChange={(e) => actualizarNombre(row.nombre, e.target.value)}
+                                id={`input-${globalIndex}-nombre`}
+                                onKeyDown={(e) => handleKeyDown(e, globalIndex, 'nombre')}
                                 style={{width:'100%', border:'none', background:'transparent', fontWeight:'bold', color:'#2c3e50', fontFamily:'monospace', fontSize:'12px'}} />
                         </td>
                         <td style={{ padding: '6px' }}>{cantidadMostrar.toFixed(2)} {row.unidad}</td>
+                        
+                        {/* STOCK */}
                         <td style={{ padding: '4px', backgroundColor:'#fff9c4' }}>
-                            <input type="number" value={row.stockPlanta} onChange={(e) => actualizarCampo(row.nombre, 'stockPlanta', e.target.value)}
+                            <input type="number" value={row.stockPlanta} 
+                                onChange={(e) => actualizarCampo(row.nombre, 'stockPlanta', e.target.value)}
+                                id={`input-${globalIndex}-stock`}
+                                onKeyDown={(e) => handleKeyDown(e, globalIndex, 'stock')}
                                 style={{width:'100%', border:'1px solid #ddd', textAlign:'center', borderRadius:'3px', padding:'2px', fontSize:'12px'}} />
                         </td>
-                        <td style={{ padding: '6px', color: cubierto ? '#27ae60' : '#c0392b', fontWeight:'bold' }}>
-                            {cubierto ? "✓ OK" : aComprar.toFixed(2)}
+                        
+                        {/* A COMPRAR (AHORA EDITABLE) */}
+                        <td style={{ padding: '4px', backgroundColor: cubierto ? '#f0fff4' : '#e8f8f5' }}>
+                            <input type="number" 
+                                value={valorAComprar} 
+                                onChange={(e) => actualizarCampo(row.nombre, 'aComprarManual', e.target.value)}
+                                id={`input-${globalIndex}-acomprar`}
+                                onKeyDown={(e) => handleKeyDown(e, globalIndex, 'acomprar')}
+                                style={{
+                                    width:'100%', border:'1px solid #ddd', textAlign:'center', borderRadius:'3px', padding:'2px', fontSize:'12px',
+                                    color: cubierto ? '#27ae60' : '#c0392b', fontWeight:'bold'
+                                }} 
+                            />
                         </td>
+                        
+                        {/* # OC */}
                         <td style={{ padding: '4px' }}>
-                            <input type="text" value={row.numeroOC} onChange={(e) => actualizarCampo(row.nombre, 'numeroOC', e.target.value)}
-                                style={{width:'100%', border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'12px'}} />
+                            <input type="text" value={row.numeroOC} 
+                                onChange={(e) => actualizarCampo(row.nombre, 'numeroOC', e.target.value)}
+                                id={`input-${globalIndex}-oc`}
+                                onKeyDown={(e) => handleKeyDown(e, globalIndex, 'oc')}
+                                style={{width:'100%', border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'12px', color: row.numeroOC === 'No comprar' ? '#aaa' : '#000'}} />
                         </td>
+                        
+                        {/* FECHA */}
                         <td style={{ padding: '4px' }}>
-                            <input type="date" value={row.fechaEntrega} onChange={(e) => actualizarCampo(row.nombre, 'fechaEntrega', e.target.value)}
+                            <input type="date" value={row.fechaEntrega} 
+                                onChange={(e) => actualizarCampo(row.nombre, 'fechaEntrega', e.target.value)}
+                                id={`input-${globalIndex}-fecha`}
+                                onKeyDown={(e) => handleKeyDown(e, globalIndex, 'fecha')}
                                 style={{border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'11px'}} />
                         </td>
+                        
+                        {/* ESTATUS */}
                         <td style={{ padding: '4px' }}>
                             <select value={row.estado} onChange={(e) => actualizarCampo(row.nombre, 'estado', e.target.value)}
                                 style={{border:'none', background: row.estado==='Completo'?'#2ecc71':(row.estado==='Pendiente'?'#95a5a6':'#3498db'), color:'white', borderRadius:'3px', padding:'2px 5px', fontSize:'10px', fontWeight:'bold'}}>
@@ -79,12 +130,10 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
 );
 
 function Dashboard() {
-  // --- ESTADOS ---
   const [planProduccion, setPlanProduccion] = useState([]);
   const [imagenesSubidas, setImagenesSubidas] = useState([]);
   const [historialGuardado, setHistorialGuardado] = useState([]);
   
-  // --- VISUALES ---
   const [loading, setLoading] = useState(false); 
   const [procesando, setProcesando] = useState(false); 
   const [mensaje, setMensaje] = useState("");
@@ -92,8 +141,7 @@ function Dashboard() {
   const [filtroOC, setFiltroOC] = useState("TODAS");
   const [imagenModal, setImagenModal] = useState(null);
   
-  // --- LOGS ---
-  const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v2.0... OK`]);
+  const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.0... OK`]);
   const [latency, setLatency] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
 
@@ -134,7 +182,6 @@ function Dashboard() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [planProduccion, imagenesSubidas]);
 
-  // --- AUXILIARES ---
   const addToLog = (text) => {
       const timestamp = new Date().toLocaleTimeString('es-ES', {hour12:false});
       setActivityLog(prev => [`> [${timestamp}] ${text}`, ...prev.slice(0, 49)]); 
@@ -154,25 +201,32 @@ function Dashboard() {
       }
   };
 
-  const exportarCSV = () => {
+  const exportarXLS = () => {
       if(planProduccion.length === 0) return alert("No hay datos para exportar.");
-      addToLog("Exportando datos a CSV...");
-      const headers = ["Categoria,Nombre,Cantidad Total,Unidad,Stock Planta,A Comprar,Numero OC,Estado,OPs Origen"];
+      addToLog("Generando archivo XLS...");
+      
+      // Creamos un contenido separado por tabulaciones (TSV) que Excel abre mejor que CSV simple
+      const headers = ["Categoria\tNombre\tCantidad Total\tUnidad\tStock Planta\tA Comprar\tNumero OC\tEstado\tOPs Origen"];
       const rows = planProduccion.map(row => {
-          const aComprar = Math.max(0, row.cantidadTotal - row.stockPlanta);
-          return `${row.categoria},"${row.nombre}",${row.cantidadTotal},${row.unidad},${row.stockPlanta},${aComprar},"${row.numeroOC}",${row.estado},"${row.opsAsociadas.join('+')}"`;
+          const aComprarCalculado = Math.max(0, row.cantidadTotal - (parseFloat(row.stockPlanta)||0));
+          const aComprarFinal = row.aComprarManual !== undefined ? row.aComprarManual : aComprarCalculado;
+          
+          return `${row.categoria}\t${row.nombre}\t${row.cantidadTotal}\t${row.unidad}\t${row.stockPlanta}\t${aComprarFinal}\t${row.numeroOC}\t${row.estado}\t${row.opsAsociadas.join('+')}`;
       });
-      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
-      const encodedUri = encodeURI(csvContent);
+      
+      const xlsContent = [headers, ...rows].join("\n");
+      const blob = new Blob([xlsContent], { type: 'application/vnd.ms-excel' });
+      const url = URL.createObjectURL(blob);
+      
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `smart_planner_export_${new Date().toISOString().slice(0,10)}.csv`);
+      link.href = url;
+      link.download = `smart_planner_report_${new Date().toISOString().slice(0,10)}.xls`;
       document.body.appendChild(link);
       link.click();
-      addToLog("Exportación CSV completada.");
+      document.body.removeChild(link);
+      addToLog("Archivo XLS generado y descargado.");
   };
 
-  // --- LÓGICA ---
   const agregarAlPlan = (datosNuevos, imagenBase64) => {
     const opId = datosNuevos.numero_op || "S/N";
     setImagenesSubidas(prev => [...prev, { op: opId, url: imagenBase64 }]);
@@ -183,12 +237,23 @@ function Dashboard() {
     itemsNuevos.forEach(itemNuevo => {
         const nombreNorm = itemNuevo.nombre.trim().toUpperCase();
         const categoria = itemNuevo.categoria || "INSUMO";
+        const tieneStockVisual = itemNuevo.tiene_stock_visual === true; // Dato que viene de la IA
+
         const indiceExistente = planActualizado.findIndex(p => p.nombre === nombreNorm);
 
         if (indiceExistente >= 0) {
             const item = planActualizado[indiceExistente];
             item.cantidadTotal += itemNuevo.cantidad;
             item.desglose[opId] = (item.desglose[opId] || 0) + itemNuevo.cantidad;
+            
+            // Si la NUEVA OP dice que tiene stock, sumamos al stock existente
+            if (tieneStockVisual) {
+                // Asumimos que si está en verde, cubre SU requerimiento completo
+                item.stockPlanta = (parseFloat(item.stockPlanta) || 0) + itemNuevo.cantidad;
+                // Si la OC estaba vacía, sugerimos no comprar. Si ya tenía número, no lo tocamos para no borrar historial.
+                if (!item.numeroOC) item.numeroOC = "No comprar"; 
+            }
+
             if (!item.opsAsociadas.includes(opId)) item.opsAsociadas.push(opId);
         } else {
             planActualizado.push({
@@ -197,10 +262,12 @@ function Dashboard() {
                 cantidadTotal: itemNuevo.cantidad,
                 desglose: { [opId]: itemNuevo.cantidad },
                 unidad: itemNuevo.unidad,
-                stockPlanta: 0, 
+                // LÓGICA DE STOCK AUTOMÁTICO
+                stockPlanta: tieneStockVisual ? itemNuevo.cantidad : 0, 
+                // LÓGICA DE OC AUTOMÁTICA
+                numeroOC: tieneStockVisual ? "No comprar" : "",
                 estado: "Pendiente", 
                 fechaEntrega: "",
-                numeroOC: "",
                 opsAsociadas: [opId]
             });
         }
@@ -229,7 +296,6 @@ function Dashboard() {
       if (!response.ok) throw new Error(data.error || "Error del Servidor");
 
       addToLog(`Datos recibidos. Latencia: ${Math.round(endTime - startTime)}ms`);
-      addToLog(`Procesando JSON para OP: ${data.datos.numero_op || 'Desconocida'}`);
       
       agregarAlPlan(data.datos, imagenBase64);
       setMensaje(`✅ OP ${data.datos.numero_op} OK!`); 
@@ -268,7 +334,6 @@ function Dashboard() {
       }
   };
 
-  // Editores
   const actualizarCampo = (nombreUnico, campo, valor) => {
       const indice = planProduccion.findIndex(i => i.nombre === nombreUnico);
       if (indice >= 0) {
@@ -296,8 +361,6 @@ function Dashboard() {
 
   return (
     <div style={{ paddingBottom: '40px' }}> 
-      
-      {/* HEADER COMPACTO */}
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '15px 20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div>
             <h1 style={{margin:0, color:'white', fontSize:'24px', letterSpacing:'-1px'}}>
@@ -313,8 +376,8 @@ function Dashboard() {
                 <option value="">📂 Historial...</option>
                 {historialGuardado.map(h=><option key={h.id} value={JSON.stringify(h)}>{h.nombre}</option>)}
             </select>
-            <button onClick={exportarCSV} style={{background:'#f39c12', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
-                📥 CSV
+            <button onClick={exportarXLS} style={{background:'#f39c12', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
+                📥 Exportar XLS
             </button>
             <button onClick={guardarProduccion} style={{background:'#27ae60', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
                 💾 Nube
@@ -326,138 +389,65 @@ function Dashboard() {
       </div>
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
-        
-        {/* PANEL STATUS COMPACTO */}
         <div style={{display:'grid', gridTemplateColumns: '2fr 1fr', gap:'15px', marginBottom:'15px'}}>
-            
-            {/* AREA FOTOS COMPACTA */}
             <div style={{background:'white', padding:'10px', borderRadius:'8px', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column', justifyContent:'center'}}>
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', alignItems:'center'}}>
                     <strong style={{color:'#2c3e50', fontSize:'13px'}}>📷 OPs Activas: {imagenesSubidas.length}</strong>
-                    
                     <span style={{fontSize:'12px', color: (typeof mensaje === 'string' && mensaje.includes('❌')) ? '#e74c3c' : (procesando ? '#e67e22' : '#27ae60'), fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px'}}>
                         {procesando && <div className="spinner" style={{width:'12px', height:'12px', borderWidth:'2px', borderColor:'#e67e22', borderLeftColor:'transparent'}}></div>}
                         {mensaje}
                     </span>
                 </div>
-                
                 <div style={{display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'2px', minHeight:'60px', background:'#f8f9fa', borderRadius:'5px', padding:'5px', border:'1px dashed #cbd5e0', alignItems:'center', justifyContent: imagenesSubidas.length===0 ? 'center' : 'flex-start'}}>
-                    
-                    {imagenesSubidas.length === 0 && 
-                        <span style={{color:'#aaa', fontSize:'12px', fontWeight:'500'}}>
-                            👉 Presiona <strong>Ctrl + V</strong> aquí
-                        </span>
-                    }
-
+                    {imagenesSubidas.length === 0 && <span style={{color:'#aaa', fontSize:'12px', fontWeight:'500'}}>👉 Presiona <strong>Ctrl + V</strong> aquí</span>}
                     {imagenesSubidas.map((img, i) => (
                         <div key={i} style={{position:'relative', flexShrink:0}}>
-                            <img src={img.url} alt="OP" onClick={()=>setImagenModal(img.url)}
-                                 style={{height:'50px', borderRadius:'4px', border:'1px solid #ddd', cursor:'pointer'}} />
-                            
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); eliminarImagenIndividual(i); }}
-                                style={{
-                                    position:'absolute', top:'-6px', right:'-6px', 
-                                    background:'#e74c3c', color:'white', border:'none', 
-                                    borderRadius:'50%', width:'16px', height:'16px', fontSize:'10px', 
-                                    cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center', fontWeight:'bold', boxShadow:'0 1px 3px rgba(0,0,0,0.2)'
-                                }}>
-                                ×
-                            </button>
+                            <img src={img.url} alt="OP" onClick={()=>setImagenModal(img.url)} style={{height:'50px', borderRadius:'4px', border:'1px solid #ddd', cursor:'pointer'}} />
+                            <button onClick={(e) => { e.stopPropagation(); eliminarImagenIndividual(i); }} style={{position:'absolute', top:'-6px', right:'-6px', background:'#e74c3c', color:'white', border:'none', borderRadius:'50%', width:'16px', height:'16px', fontSize:'10px', cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center', fontWeight:'bold', boxShadow:'0 1px 3px rgba(0,0,0,0.2)'}}>×</button>
                         </div>
                     ))}
                 </div>
             </div>
-
-            {/* CONSOLA DE ACTIVIDAD COMPACTA */}
             <div style={{background:'#1e1e1e', padding:'8px', borderRadius:'8px', color:'#00ff00', fontFamily:'monospace', fontSize:'10px', height:'105px', overflowY:'auto', border:'1px solid #333', boxShadow:'inset 0 0 10px rgba(0,0,0,0.5)'}}>
                 <div style={{borderBottom:'1px solid #333', paddingBottom:'2px', marginBottom:'2px', color:'#fff', fontWeight:'bold', fontSize:'9px'}}>TERMINAL_LOG</div>
                 {activityLog.map((line, i) => <div key={i} style={{opacity: i===0?1:0.7, whiteSpace: 'nowrap', lineHeight:'1.3'}}>{line}</div>)}
             </div>
         </div>
 
-        {/* FILTROS COMPACTOS */}
         <div style={{background:'#34495e', padding:'8px 15px', borderRadius:'6px', marginBottom:'15px', display:'flex', gap:'20px', alignItems:'center', color:'white', fontSize:'13px'}}>
              <span style={{fontWeight:'bold'}}>⚡ FILTROS:</span>
              <label style={{color:'#bdc3c7'}}>Orden Producción (OP): 
-                <select value={filtroOP} onChange={(e)=>setFiltroOP(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>
-                    {opsCargadas.map(op=><option key={op} value={op}>{op}</option>)}
-                </select>
+                <select value={filtroOP} onChange={(e)=>setFiltroOP(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>{opsCargadas.map(op=><option key={op} value={op}>{op}</option>)}</select>
              </label>
              <label style={{color:'#bdc3c7'}}>Orden Compra (OC): 
-                <select value={filtroOC} onChange={(e)=>setFiltroOC(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>
-                    {ocsCargadas.map(oc=><option key={oc} value={oc}>{oc || "N/A"}</option>)}
-                </select>
+                <select value={filtroOC} onChange={(e)=>setFiltroOC(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>{ocsCargadas.map(oc=><option key={oc} value={oc}>{oc || "N/A"}</option>)}</select>
              </label>
         </div>
 
-        {/* TABLAS */}
-        {/* Aquí pasamos las funciones como props para que la tabla pueda actualizar el estado */}
-        <TablaGrupo 
-            titulo="📦 MATERIA PRIMA / INSUMOS" 
-            datos={grupoInsumos} 
-            colorHeader="#2980b9" 
-            filtroOP={filtroOP}
-            actualizarCampo={actualizarCampo}
-            actualizarNombre={actualizarNombre}
-        />
-        <TablaGrupo 
-            titulo="🏷️ MATERIAL DE EMPAQUE" 
-            datos={grupoEmpaques} 
-            colorHeader="#e67e22" 
-            filtroOP={filtroOP}
-            actualizarCampo={actualizarCampo}
-            actualizarNombre={actualizarNombre}
-        />
+        <TablaGrupo titulo="📦 MATERIA PRIMA / INSUMOS" datos={grupoInsumos} colorHeader="#2980b9" filtroOP={filtroOP} actualizarCampo={actualizarCampo} actualizarNombre={actualizarNombre} startIndex={0} />
+        <TablaGrupo titulo="🏷️ MATERIAL DE EMPAQUE" datos={grupoEmpaques} colorHeader="#e67e22" filtroOP={filtroOP} actualizarCampo={actualizarCampo} actualizarNombre={actualizarNombre} startIndex={grupoInsumos.length} />
 
-        {/* FOOTER TECH COMPACTO */}
         <div style={{marginTop:'30px', borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:'20px', textAlign:'center', color:'#bdc3c7', fontSize:'11px', marginBottom:'40px'}}>
-            
             <div style={{display:'flex', gap:'10px', justifyContent:'center', marginBottom:'15px'}}>
-                <a href={SOCIAL_LINKS.linkedin} target="_blank" rel="noreferrer" style={{color:'#fff', textDecoration:'none', fontSize:'12px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.05)', padding:'5px 10px', borderRadius:'15px', border:'1px solid rgba(255,255,255,0.1)'}}>
-                    <span>🔗</span> LinkedIn
-                </a>
-                <a href={SOCIAL_LINKS.github} target="_blank" rel="noreferrer" style={{color:'#fff', textDecoration:'none', fontSize:'12px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.05)', padding:'5px 10px', borderRadius:'15px', border:'1px solid rgba(255,255,255,0.1)'}}>
-                    <span>💻</span> GitHub
-                </a>
-                <a href={SOCIAL_LINKS.researchgate} target="_blank" rel="noreferrer" style={{color:'#fff', textDecoration:'none', fontSize:'12px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.05)', padding:'5px 10px', borderRadius:'15px', border:'1px solid rgba(255,255,255,0.1)'}}>
-                    <span>📄</span> ResearchGate
-                </a>
+                <a href={SOCIAL_LINKS.linkedin} target="_blank" rel="noreferrer" style={{color:'#fff', textDecoration:'none', fontSize:'12px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.05)', padding:'5px 10px', borderRadius:'15px', border:'1px solid rgba(255,255,255,0.1)'}}><span>🔗</span> LinkedIn</a>
+                <a href={SOCIAL_LINKS.github} target="_blank" rel="noreferrer" style={{color:'#fff', textDecoration:'none', fontSize:'12px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.05)', padding:'5px 10px', borderRadius:'15px', border:'1px solid rgba(255,255,255,0.1)'}}><span>💻</span> GitHub</a>
+                <a href={SOCIAL_LINKS.researchgate} target="_blank" rel="noreferrer" style={{color:'#fff', textDecoration:'none', fontSize:'12px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(255,255,255,0.05)', padding:'5px 10px', borderRadius:'15px', border:'1px solid rgba(255,255,255,0.1)'}}><span>📄</span> ResearchGate</a>
             </div>
-
-            <p style={{marginBottom:'10px', fontFamily:'monospace'}}>
-                Architected by <strong style={{color:'white'}}>Aaron Llerena</strong> • Tech Stack: <span style={{color:'#f39c12'}}>Firebase</span>, <span style={{color:'#2ecc71'}}>Python</span> & <span style={{color:'#3498db'}}>Gemini AI 1.5 Flash</span>
-            </p>
+            <p style={{marginBottom:'10px', fontFamily:'monospace'}}>Architected by <strong style={{color:'white'}}>Aaron Llerena</strong> • Tech Stack: <span style={{color:'#f39c12'}}>Firebase</span>, <span style={{color:'#2ecc71'}}>Python</span> & <span style={{color:'#3498db'}}>Gemini AI 1.5 Flash</span></p>
             <div style={{display:'flex', gap:'8px', justifyContent:'center', fontFamily:'monospace'}}>
                 <span style={{background:'#2c3e50', padding:'1px 6px', borderRadius:'8px', fontSize:'9px', border:'1px solid #34495e'}}>React</span>
                 <span style={{background:'#2c3e50', padding:'1px 6px', borderRadius:'8px', fontSize:'9px', border:'1px solid #34495e'}}>Firestore</span>
                 <span style={{background:'#2c3e50', padding:'1px 6px', borderRadius:'8px', fontSize:'9px', border:'1px solid #34495e'}}>GenAI</span>
             </div>
         </div>
-
       </div>
 
-      {/* BARRA ESTADO COMPACTA */}
-      <div style={{
-          position:'fixed', bottom:0, left:0, width:'100%', height:'22px', 
-          background:'#007acc', color:'white', fontSize:'10px', 
-          display:'flex', alignItems:'center', padding:'0 15px', justifyContent:'space-between',
-          fontFamily:'Segoe UI, sans-serif', zIndex:1000
-      }}>
-          <div style={{display:'flex', gap:'15px'}}>
-              <span>🚀 ONLINE</span>
-              <span>📡 {latency}ms</span>
-              <span>💾 Firestore</span>
-          </div>
-          <div style={{display:'flex', gap:'15px'}}>
-              <span>🕒 {currentTime}</span>
-          </div>
+      <div style={{position:'fixed', bottom:0, left:0, width:'100%', height:'22px', background:'#007acc', color:'white', fontSize:'10px', display:'flex', alignItems:'center', padding:'0 15px', justifyContent:'space-between', fontFamily:'Segoe UI, sans-serif', zIndex:1000}}>
+          <div style={{display:'flex', gap:'15px'}}><span>🚀 ONLINE</span><span>📡 {latency}ms</span><span>💾 Firestore</span></div>
+          <div style={{display:'flex', gap:'15px'}}><span>🕒 {currentTime}</span></div>
       </div>
 
-      {/* MODAL */}
-      {imagenModal && <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.9)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}} onClick={()=>setImagenModal(null)}>
-          <img src={imagenModal} style={{maxHeight:'90%', maxWidth:'90%', borderRadius:'5px'}} />
-      </div>}
+      {imagenModal && <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.9)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}} onClick={()=>setImagenModal(null)}><img src={imagenModal} style={{maxHeight:'90%', maxWidth:'90%', borderRadius:'5px'}} /></div>}
     </div>
   );
 }

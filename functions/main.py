@@ -7,7 +7,6 @@ import google.generativeai as genai
 initialize_app()
 
 # --- SEGURIDAD: Leer la clave desde Variables de Entorno ---
-# Esto busca la clave en el archivo .env oculto o en la configuración de Firebase
 API_KEY = os.environ.get("GEMINI_API_KEY")
 # -----------------------------------------------------------
 
@@ -42,31 +41,38 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
             imagen_b64 = imagen_b64.split(",")[1]
 
         # 3. Configurar Modelo
-        model = genai.GenerativeModel('gemini-flash-latest')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # 4. Instrucciones para la IA (Prompt)
+        # 4. Instrucciones para la IA (Prompt) - ACTUALIZADO CON LÓGICA DE COLOR
         prompt = """
         Analiza esta Orden de Producción (imagen).
         
-        OBJETIVO 1: Extraer el NÚMERO DE OP.
-        OBJETIVO 2: Extraer la lista de items y clasificarlos.
+        OBJETIVO: Extraer datos y DETECTAR STOCK POR COLOR.
         
-        REGLAS DE CLASIFICACIÓN (IMPORTANTE):
-        - "INSUMO": Materias primas (ej: Maltodextrina, Citrato, Saborizantes, Vitaminas).
-        - "EMPAQUE": Materiales de envase (ej: Potes, Tapas, Cajas, Etiquetas, Scoops, Termoencogibles).
+        REGLA DE COLOR (IMPORTANTE):
+        - Fíjate en el fondo de las filas de la tabla.
+        - Si una fila o el nombre del insumo está RESALTADO EN VERDE (o verde amarillento), significa que YA HAY STOCK.
+        - Marca el campo "tiene_stock_visual": true para esos items. Para el resto, false.
+
+        REGLAS DE CLASIFICACIÓN:
+        - "INSUMO": Materias primas (ej: Colágeno, Maltodextrina, Ácido Cítrico).
+        - "EMPAQUE": Materiales de envase (ej: Potes, Tapas, Etiquetas, Termoencogibles).
         
-        REGLAS DE LIMPIEZA DE TEXTO:
-        - Para "EMPAQUE": Si hay una columna de 'Observaciones' o detalles visuales, agrégala al nombre.
-          ¡MUY IMPORTANTE!: Únelos usando SOLO UN ESPACIO. NO USES EL SIGNO '+'.
-          Ejemplo CORRECTO: "Pote HDPE 310 Color Blanco"
-          Ejemplo INCORRECTO: "Pote HDPE 310 + Color Blanco"
-        - Para "INSUMO": Solo el nombre del ingrediente. Normaliza mayúsculas (ej: "Maltodextrina").
+        REGLAS DE LIMPIEZA:
+        - Para "EMPAQUE": Concatena NOMBRE + OBSERVACIONES (separado por espacio).
+        - Para "INSUMO": Solo nombre normalizado.
         
-        Devuelve SOLO este JSON estricto:
+        JSON Estricto:
         {
             "numero_op": "00000",
             "items": [
-                {"nombre": "Nombre Limpio", "cantidad": 0, "unidad": "kg/und", "categoria": "INSUMO"}
+                {
+                    "nombre": "Nombre Limpio", 
+                    "cantidad": 0, 
+                    "unidad": "kg/und", 
+                    "categoria": "INSUMO",
+                    "tiene_stock_visual": true/false
+                }
             ]
         }
         """
