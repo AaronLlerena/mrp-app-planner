@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from './firebase'; 
 import { collection, getDocs, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore'; 
 
@@ -9,6 +9,74 @@ const SOCIAL_LINKS = {
     github: "https://github.com/",
     researchgate: "https://www.researchgate.net/"
 };
+
+// --- COMPONENTE TABLA (EXTRAÍDO PARA EVITAR EL PARPADEO) ---
+const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, actualizarNombre }) => (
+    <div style={{marginBottom:'20px', borderRadius:'6px', overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.2)'}}>
+        <div style={{backgroundColor: colorHeader, color:'white', padding:'8px 15px', fontWeight:'bold', display:'flex', justifyContent:'space-between', fontSize:'14px'}}>
+            <span>{titulo}</span>
+            <span style={{opacity:0.8, fontSize:'12px'}}>{datos.length} items</span>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor:'#fdfdfd', fontSize:'12px', color:'#333' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#ecf0f1', color: '#555', textAlign: 'left', borderBottom:'2px solid #bdc3c7' }}>
+              <th style={{ padding: '8px' }}>NOMBRE (Editable)</th>
+              <th style={{ padding: '8px' }}>REQ. {filtroOP==="TODAS"?"TOTAL":filtroOP}</th>
+              <th style={{ padding: '8px', width:'70px', backgroundColor:'#fff9c4' }}>STOCK</th>
+              <th style={{ padding: '8px' }}>A COMPRAR</th>
+              <th style={{ padding: '8px', width:'60px' }}># OC</th>
+              <th style={{ padding: '8px' }}>F. ENTREGA</th>
+              <th style={{ padding: '8px' }}>ESTATUS</th>
+              <th style={{ padding: '8px' }}>ORIGEN</th>
+            </tr>
+          </thead>
+          <tbody>
+            {datos.length === 0 ? <tr><td colSpan="8" style={{padding:'15px', textAlign:'center', color:'#aaa', fontStyle:'italic'}}>--- Sin datos ---</td></tr> : 
+             datos.map((row, index) => {
+                const cantidadMostrar = filtroOP === "TODAS" ? row.cantidadTotal : (row.desglose[filtroOP] || 0);
+                const stock = parseFloat(row.stockPlanta) || 0;
+                const aComprar = Math.max(0, cantidadMostrar - stock);
+                const cubierto = aComprar <= 0;
+
+                return (
+                    <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: cubierto ? '#f0fff4' : 'white' }}>
+                        <td style={{ padding: '5px' }}>
+                            <input type="text" value={row.nombre} onChange={(e) => actualizarNombre(row.nombre, e.target.value)}
+                                style={{width:'100%', border:'none', background:'transparent', fontWeight:'bold', color:'#2c3e50', fontFamily:'monospace', fontSize:'12px'}} />
+                        </td>
+                        <td style={{ padding: '6px' }}>{cantidadMostrar.toFixed(2)} {row.unidad}</td>
+                        <td style={{ padding: '4px', backgroundColor:'#fff9c4' }}>
+                            <input type="number" value={row.stockPlanta} onChange={(e) => actualizarCampo(row.nombre, 'stockPlanta', e.target.value)}
+                                style={{width:'100%', border:'1px solid #ddd', textAlign:'center', borderRadius:'3px', padding:'2px', fontSize:'12px'}} />
+                        </td>
+                        <td style={{ padding: '6px', color: cubierto ? '#27ae60' : '#c0392b', fontWeight:'bold' }}>
+                            {cubierto ? "✓ OK" : aComprar.toFixed(2)}
+                        </td>
+                        <td style={{ padding: '4px' }}>
+                            <input type="text" value={row.numeroOC} onChange={(e) => actualizarCampo(row.nombre, 'numeroOC', e.target.value)}
+                                style={{width:'100%', border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'12px'}} />
+                        </td>
+                        <td style={{ padding: '4px' }}>
+                            <input type="date" value={row.fechaEntrega} onChange={(e) => actualizarCampo(row.nombre, 'fechaEntrega', e.target.value)}
+                                style={{border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'11px'}} />
+                        </td>
+                        <td style={{ padding: '4px' }}>
+                            <select value={row.estado} onChange={(e) => actualizarCampo(row.nombre, 'estado', e.target.value)}
+                                style={{border:'none', background: row.estado==='Completo'?'#2ecc71':(row.estado==='Pendiente'?'#95a5a6':'#3498db'), color:'white', borderRadius:'3px', padding:'2px 5px', fontSize:'10px', fontWeight:'bold'}}>
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="OC enviada">OC enviada</option>
+                                <option value="Por entregar">Por entregar</option>
+                                <option value="Completo">Completo</option>
+                            </select>
+                        </td>
+                        <td style={{ padding: '6px', fontSize:'0.75em', color:'#aaa' }}>{row.opsAsociadas.join(", ")}</td>
+                    </tr>
+                );
+             })}
+          </tbody>
+        </table>
+    </div>
+);
 
 function Dashboard() {
   // --- ESTADOS ---
@@ -142,7 +210,6 @@ function Dashboard() {
 
   const procesarImagen = async (imagenBase64) => {
     setProcesando(true);
-    // FIX: Mensaje como texto simple para no romper el .includes()
     setMensaje("Analizando OP con Gemini AI... ⚡");
     addToLog("Subiendo imagen...");
     const startTime = performance.now();
@@ -227,74 +294,6 @@ function Dashboard() {
   const grupoInsumos = datosFiltrados.filter(i => i.categoria === "INSUMO");
   const grupoEmpaques = datosFiltrados.filter(i => i.categoria === "EMPAQUE");
 
-  // --- COMPONENTES VISUALES ---
-  const TablaGrupo = ({ titulo, datos, colorHeader }) => (
-    <div style={{marginBottom:'20px', borderRadius:'6px', overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.2)'}}>
-        <div style={{backgroundColor: colorHeader, color:'white', padding:'8px 15px', fontWeight:'bold', display:'flex', justifyContent:'space-between', fontSize:'14px'}}>
-            <span>{titulo}</span>
-            <span style={{opacity:0.8, fontSize:'12px'}}>{datos.length} items</span>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor:'#fdfdfd', fontSize:'12px', color:'#333' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#ecf0f1', color: '#555', textAlign: 'left', borderBottom:'2px solid #bdc3c7' }}>
-              <th style={{ padding: '8px' }}>NOMBRE (Editable)</th>
-              <th style={{ padding: '8px' }}>REQ. {filtroOP==="TODAS"?"TOTAL":filtroOP}</th>
-              <th style={{ padding: '8px', width:'70px', backgroundColor:'#fff9c4' }}>STOCK</th>
-              <th style={{ padding: '8px' }}>A COMPRAR</th>
-              <th style={{ padding: '8px', width:'60px' }}># OC</th>
-              <th style={{ padding: '8px' }}>F. ENTREGA</th>
-              <th style={{ padding: '8px' }}>ESTATUS</th>
-              <th style={{ padding: '8px' }}>ORIGEN</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.length === 0 ? <tr><td colSpan="8" style={{padding:'15px', textAlign:'center', color:'#aaa', fontStyle:'italic'}}>--- Sin datos ---</td></tr> : 
-             datos.map((row, index) => {
-                const cantidadMostrar = filtroOP === "TODAS" ? row.cantidadTotal : (row.desglose[filtroOP] || 0);
-                const stock = parseFloat(row.stockPlanta) || 0;
-                const aComprar = Math.max(0, cantidadMostrar - stock);
-                const cubierto = aComprar <= 0;
-
-                return (
-                    <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: cubierto ? '#f0fff4' : 'white' }}>
-                        <td style={{ padding: '5px' }}>
-                            <input type="text" value={row.nombre} onChange={(e) => actualizarNombre(row.nombre, e.target.value)}
-                                style={{width:'100%', border:'none', background:'transparent', fontWeight:'bold', color:'#2c3e50', fontFamily:'monospace', fontSize:'12px'}} />
-                        </td>
-                        <td style={{ padding: '6px' }}>{cantidadMostrar.toFixed(2)} {row.unidad}</td>
-                        <td style={{ padding: '4px', backgroundColor:'#fff9c4' }}>
-                            <input type="number" value={row.stockPlanta} onChange={(e) => actualizarCampo(row.nombre, 'stockPlanta', e.target.value)}
-                                style={{width:'100%', border:'1px solid #ddd', textAlign:'center', borderRadius:'3px', padding:'2px', fontSize:'12px'}} />
-                        </td>
-                        <td style={{ padding: '6px', color: cubierto ? '#27ae60' : '#c0392b', fontWeight:'bold' }}>
-                            {cubierto ? "✓ OK" : aComprar.toFixed(2)}
-                        </td>
-                        <td style={{ padding: '4px' }}>
-                            <input type="text" value={row.numeroOC} onChange={(e) => actualizarCampo(row.nombre, 'numeroOC', e.target.value)}
-                                style={{width:'100%', border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'12px'}} />
-                        </td>
-                        <td style={{ padding: '4px' }}>
-                            <input type="date" value={row.fechaEntrega} onChange={(e) => actualizarCampo(row.nombre, 'fechaEntrega', e.target.value)}
-                                style={{border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'11px'}} />
-                        </td>
-                        <td style={{ padding: '4px' }}>
-                            <select value={row.estado} onChange={(e) => actualizarCampo(row.nombre, 'estado', e.target.value)}
-                                style={{border:'none', background: row.estado==='Completo'?'#2ecc71':(row.estado==='Pendiente'?'#95a5a6':'#3498db'), color:'white', borderRadius:'3px', padding:'2px 5px', fontSize:'10px', fontWeight:'bold'}}>
-                                <option value="Pendiente">Pendiente</option>
-                                <option value="OC enviada">OC enviada</option>
-                                <option value="Por entregar">Por entregar</option>
-                                <option value="Completo">Completo</option>
-                            </select>
-                        </td>
-                        <td style={{ padding: '6px', fontSize:'0.75em', color:'#aaa' }}>{row.opsAsociadas.join(", ")}</td>
-                    </tr>
-                );
-             })}
-          </tbody>
-        </table>
-    </div>
-  );
-
   return (
     <div style={{ paddingBottom: '40px' }}> 
       
@@ -336,7 +335,6 @@ function Dashboard() {
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', alignItems:'center'}}>
                     <strong style={{color:'#2c3e50', fontSize:'13px'}}>📷 OPs Activas: {imagenesSubidas.length}</strong>
                     
-                    {/* FIX: Renderizado seguro del mensaje + spinner condicional */}
                     <span style={{fontSize:'12px', color: (typeof mensaje === 'string' && mensaje.includes('❌')) ? '#e74c3c' : (procesando ? '#e67e22' : '#27ae60'), fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px'}}>
                         {procesando && <div className="spinner" style={{width:'12px', height:'12px', borderWidth:'2px', borderColor:'#e67e22', borderLeftColor:'transparent'}}></div>}
                         {mensaje}
@@ -394,8 +392,23 @@ function Dashboard() {
         </div>
 
         {/* TABLAS */}
-        <TablaGrupo titulo="📦 MATERIA PRIMA / INSUMOS" datos={grupoInsumos} colorHeader="#2980b9" />
-        <TablaGrupo titulo="🏷️ MATERIAL DE EMPAQUE" datos={grupoEmpaques} colorHeader="#e67e22" />
+        {/* Aquí pasamos las funciones como props para que la tabla pueda actualizar el estado */}
+        <TablaGrupo 
+            titulo="📦 MATERIA PRIMA / INSUMOS" 
+            datos={grupoInsumos} 
+            colorHeader="#2980b9" 
+            filtroOP={filtroOP}
+            actualizarCampo={actualizarCampo}
+            actualizarNombre={actualizarNombre}
+        />
+        <TablaGrupo 
+            titulo="🏷️ MATERIAL DE EMPAQUE" 
+            datos={grupoEmpaques} 
+            colorHeader="#e67e22" 
+            filtroOP={filtroOP}
+            actualizarCampo={actualizarCampo}
+            actualizarNombre={actualizarNombre}
+        />
 
         {/* FOOTER TECH COMPACTO */}
         <div style={{marginTop:'30px', borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:'20px', textAlign:'center', color:'#bdc3c7', fontSize:'11px', marginBottom:'40px'}}>
