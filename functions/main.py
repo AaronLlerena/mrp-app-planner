@@ -32,17 +32,22 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         if "," in imagen_b64:
             imagen_b64 = imagen_b64.split(",")[1]
 
-        # Usamos el modelo rápido que sabemos que funciona
         model = genai.GenerativeModel('gemini-flash-latest')
         
+        # --- PROMPT MEJORADO PARA DETECTAR EMPAQUES ---
         prompt = """
         Analiza esta imagen de una Orden de Producción.
-        Extrae el NÚMERO DE OP y los insumos. Devuelve este JSON estricto:
+        Extrae el NÚMERO DE OP y la lista de insumos/materiales.
+        
+        REGLA IMPORTANTE PARA MATERIALES DE EMPAQUE:
+        Si detectas una tabla de materiales de empaque, en el campo "nombre" concatena el NOMBRE + OBSERVACIONES (ej: "Envase HDPE + Color Blanco").
+        
+        Devuelve JSON estricto:
         {
             "numero_op": "00000",
             "producto": "Nombre del producto",
             "insumos": [
-                {"nombre": "Nombre Insumo", "cantidad": 0, "unidad": "kg/g/l"}
+                {"nombre": "Nombre Insumo Completo", "cantidad": 0, "unidad": "kg/und"}
             ]
         }
         Responde SOLO con el JSON.
@@ -62,7 +67,4 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         }), status=200, headers=headers)
 
     except Exception as e:
-        return https_fn.Response(json.dumps({
-            "error": str(e),
-            "mensaje": f"Error técnico: {str(e)}"
-        }), status=500, headers=headers)
+        return https_fn.Response(json.dumps({"error": str(e)}), status=500, headers=headers)
