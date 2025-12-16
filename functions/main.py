@@ -26,21 +26,21 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
     try:
         req_json = req.get_json()
         if not req_json or 'image' not in req_json:
-            return https_fn.Response("Falta la imagen", status=400, headers=headers)
+            return https_fn.Response(json.dumps({"error": "Falta la imagen"}), status=400, headers=headers)
             
         imagen_b64 = req_json['image']
-        # Limpieza simple del encabezado base64 si existe
         if "," in imagen_b64:
             imagen_b64 = imagen_b64.split(",")[1]
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Usamos el modelo rápido que sabemos que funciona
+        model = genai.GenerativeModel('gemini-flash-latest')
         
         prompt = """
         Analiza esta imagen de una Orden de Producción.
-        Extrae los datos y devuélvelos en formato JSON estricto:
+        Extrae el NÚMERO DE OP y los insumos. Devuelve este JSON estricto:
         {
-            "producto": "Nombre del producto detectado",
-            "cantidad_a_producir": 0,
+            "numero_op": "00000",
+            "producto": "Nombre del producto",
             "insumos": [
                 {"nombre": "Nombre Insumo", "cantidad": 0, "unidad": "kg/g/l"}
             ]
@@ -57,9 +57,12 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         datos = json.loads(texto)
 
         return https_fn.Response(json.dumps({
-            "mensaje": "¡Lectura Exitosa con IA!",
+            "mensaje": f"¡OP {datos.get('numero_op', '???')} procesada!",
             "datos": datos
         }), status=200, headers=headers)
 
     except Exception as e:
-        return https_fn.Response(f"Error: {str(e)}", status=500, headers=headers)
+        return https_fn.Response(json.dumps({
+            "error": str(e),
+            "mensaje": f"Error técnico: {str(e)}"
+        }), status=500, headers=headers)
