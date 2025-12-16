@@ -1,10 +1,16 @@
 import json
 import os
 from firebase_functions import https_fn
-from firebase_admin import initialize_app, firestore
+from firebase_admin import initialize_app
 import google.generativeai as genai
 
 initialize_app()
+
+# --- TU CLAVE DE GEMINI ---
+API_KEY = "AIzaSyAGp0vC9L2XCUpOIznHfAW0ANyLhEOGCwI"
+# --------------------------
+
+genai.configure(api_key=API_KEY)
 
 @https_fn.on_request(min_instances=0, max_instances=1)
 def procesar_op(req: https_fn.Request) -> https_fn.Response:
@@ -19,16 +25,41 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
 
     try:
         req_json = req.get_json()
-        if not req_json:
-            return https_fn.Response("No JSON", status=400, headers=headers)
+        if not req_json or 'image' not in req_json:
+            return https_fn.Response("Falta la imagen", status=400, headers=headers)
             
-        # Aqui ira la logica de Gemini mas adelante
-        respuesta = {
-            "mensaje": "Conexion exitosa con Python",
-            "estado": "listo"
-        }
+        imagen_b64 = req_json['image']
+        # Limpieza simple del encabezado base64 si existe
+        if "," in imagen_b64:
+            imagen_b64 = imagen_b64.split(",")[1]
+
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        return https_fn.Response(json.dumps(respuesta), status=200, headers=headers)
+        prompt = """
+        Analiza esta imagen de una Orden de Producción.
+        Extrae los datos y devuélvelos en formato JSON estricto:
+        {
+            "producto": "Nombre del producto detectado",
+            "cantidad_a_producir": 0,
+            "insumos": [
+                {"nombre": "Nombre Insumo", "cantidad": 0, "unidad": "kg/g/l"}
+            ]
+        }
+        Responde SOLO con el JSON.
+        """
+
+        response = model.generate_content([
+            {'mime_type': 'image/jpeg', 'data': imagen_b64},
+            prompt
+        ])
+        
+        texto = response.text.replace('```json', '').replace('```', '').strip()
+        datos = json.loads(texto)
+
+        return https_fn.Response(json.dumps({
+            "mensaje": "¡Lectura Exitosa con IA!",
+            "datos": datos
+        }), status=200, headers=headers)
 
     except Exception as e:
         return https_fn.Response(f"Error: {str(e)}", status=500, headers=headers)
