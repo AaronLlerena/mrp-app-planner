@@ -12,3 +12,22 @@ body {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #1e2140; }
 ::-webkit-scrollbar-thumb { background: #3498db; border-radius: 4px; }
+/* ... (mantén el código anterior) ... */
+
+/* Spinner de carga animado */
+.spinner {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border-left-color: #3498db; /* Color azulito */
+  animation: spin 1s ease-in-out infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
