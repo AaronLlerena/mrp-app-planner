@@ -25,7 +25,7 @@ const styles = {
 };
 
 
-function MRP() {
+function Planner() {
   const [inventario, setInventario] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,4 +92,4 @@ function MRP() {
   );
 }
 
-export default MRP;
+export default Planner;
