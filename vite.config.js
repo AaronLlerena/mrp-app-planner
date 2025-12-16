@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // Esto es crucial para el despliegue en Vercel:
+  // CRUCIAL: Necesario para que Vercel sepa dónde iniciar
   base: '/', 
   build: {
     outDir: 'dist', 
