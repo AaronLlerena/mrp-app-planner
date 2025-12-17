@@ -137,7 +137,7 @@ function Dashboard() {
   const [filtroOC, setFiltroOC] = useState("TODAS");
   const [imagenModal, setImagenModal] = useState(null);
   
-  const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.1 (Manual Mode)... OK`]);
+  const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.2 (Stock Column Mode)... OK`]);
   const [latency, setLatency] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
 
@@ -233,12 +233,18 @@ function Dashboard() {
         const nombreNorm = itemNuevo.nombre.trim().toUpperCase();
         const categoria = itemNuevo.categoria || "INSUMO";
         
+        // Usamos el stock detectado por la IA, o 0 si no vino nada
+        const stockInicial = parseFloat(itemNuevo.stock_detectado) || 0;
+
         const indiceExistente = planActualizado.findIndex(p => p.nombre === nombreNorm);
 
         if (indiceExistente >= 0) {
             const item = planActualizado[indiceExistente];
             item.cantidadTotal += itemNuevo.cantidad;
             item.desglose[opId] = (item.desglose[opId] || 0) + itemNuevo.cantidad;
+            // Si ya existe, SUMAMOS el stock detectado en esta nueva OP al stock que ya tenía
+            item.stockPlanta = (parseFloat(item.stockPlanta) || 0) + stockInicial;
+
             if (!item.opsAsociadas.includes(opId)) item.opsAsociadas.push(opId);
         } else {
             planActualizado.push({
@@ -247,8 +253,8 @@ function Dashboard() {
                 cantidadTotal: itemNuevo.cantidad,
                 desglose: { [opId]: itemNuevo.cantidad },
                 unidad: itemNuevo.unidad,
-                // VALORES POR DEFECTO MANUALES (SIN MAGIA DE COLORES)
-                stockPlanta: 0, 
+                // AQUÍ ESTÁ EL CAMBIO CLAVE: Usamos el stock detectado como valor inicial
+                stockPlanta: stockInicial, 
                 numeroOC: "",
                 estado: "Pendiente", 
                 fechaEntrega: "",
@@ -261,7 +267,7 @@ function Dashboard() {
 
   const procesarImagen = async (imagenBase64) => {
     setProcesando(true);
-    setMensaje("Analizando OP con Gemini AI... ⚡");
+    setMensaje("Analizando OP y columna STOCK... ⚡");
     addToLog("Subiendo imagen...");
     const startTime = performance.now();
 
