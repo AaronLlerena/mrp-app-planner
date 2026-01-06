@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://mrp-app-planner.vercel.app/sitemap.xml
