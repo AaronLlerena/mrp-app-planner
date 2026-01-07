@@ -5,10 +5,8 @@ from firebase_admin import initialize_app, get_app
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# 1. Cargar el archivo secreto .env automáticamente
 load_dotenv()
 
-# 2. Inicializar Firebase de forma segura
 try:
     get_app()
 except ValueError:
@@ -26,17 +24,12 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response('', status=204, headers=headers)
 
     try:
-        # 3. SEGURIDAD: Leer la clave
         api_key = os.environ.get("GEMINI_API_KEY")
-        
         if not api_key:
-            return https_fn.Response(json.dumps({
-                "error": "Error Crítico: API Key no encontrada en el servidor."
-            }), status=500, headers=headers)
+            return https_fn.Response(json.dumps({"error": "Error: API Key no encontrada."}), status=500, headers=headers)
 
         genai.configure(api_key=api_key)
 
-        # 4. Procesar Datos
         req_json = req.get_json()
         if not req_json or 'image' not in req_json:
             return https_fn.Response(json.dumps({"error": "Falta la imagen"}), status=400, headers=headers)
@@ -45,36 +38,36 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         if "," in imagen_b64:
             imagen_b64 = imagen_b64.split(",")[1]
 
-        # 5. Modelo Rápido
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 6. Prompt ACTUALIZADO para leer columna STOCK
+        # --- PROMPT REFORZADO PARA LEER COLUMNAS ---
         prompt = """
-        Analiza esta Orden de Producción (imagen de hoja de cálculo).
+        Actúa como un analista de datos experto extrayendo tablas de imágenes.
         
-        OBJETIVO: Extraer los items de MATERIA PRIMA e INSUMOS, incluyendo la nueva columna "STOCK".
+        TAREA:
+        1. Identifica la tabla de "MATERIA PRIMA" y "MATERIAL DE EMPAQUE".
+        2. Localiza EXACTAMENTE la columna con el encabezado "STOCK" (o similar).
+        3. Para CADA fila de item, sigue la línea horizontalmente hasta encontrar el valor en esa columna "STOCK".
         
-        REGLAS DE EXTRACCIÓN:
-        1. Busca las secciones de "MATERIA PRIMA" y "MATERIAL DE EMPAQUE".
-        2. Para cada fila, extrae: Nombre, Cantidad (o %) y la Unidad estimada.
-        3. **CRÍTICO: Busca la columna titulada "STOCK"** (usualmente a la derecha de la cantidad/porcentaje).
-           - Si hay un número en la columna "STOCK" para esa fila, extráelo como `stock_detectado`.
-           - Si la celda "STOCK" está vacía, el `stock_detectado` debe ser 0.
+        REGLAS DE EXTRACCIÓN DE VALORES:
+        - Si en la columna STOCK hay un número (ej: "233.51", "1001"), extráelo como `stock_detectado`.
+        - Si la celda de STOCK está vacía, en blanco o tiene un guión "-", el `stock_detectado` es 0.
+        - ¡No inventes valores! Si está vacío es 0.
         
-        REGLAS DE LIMPIEZA:
-        - "INSUMO": Materias primas.
-        - "EMPAQUE": Materiales de envase (Concatena Nombre + Observaciones).
+        REGLAS DE TEXTO:
+        - INSUMO: Solo nombre limpio.
+        - EMPAQUE: Concatena Nombre + Observaciones.
         
-        Responde SOLO con este JSON estricto:
+        Tu respuesta debe ser UNICAMENTE este JSON:
         {
             "numero_op": "00000",
             "items": [
                 {
-                    "nombre": "Nombre del Item", 
-                    "cantidad": 100.50, 
-                    "unidad": "kg/und", 
+                    "nombre": "Maltodextrina", 
+                    "cantidad": 233.51, 
+                    "unidad": "kg", 
                     "categoria": "INSUMO",
-                    "stock_detectado": 50.00  // Valor de la columna STOCK o 0 si está vacía
+                    "stock_detectado": 0.00  // Valor numérico exacto de la columna STOCK
                 }
             ]
         }
@@ -86,10 +79,11 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
         ])
         
         texto = response.text.replace('```json', '').replace('```', '').strip()
+        
+        # Limpieza robusta del JSON por si la IA añade texto extra
         try:
             datos = json.loads(texto)
         except:
-            # Fallback por si la IA devuelve texto extra antes o después del JSON
             start = texto.find('{')
             end = texto.rfind('}') + 1
             datos = json.loads(texto[start:end])
@@ -102,5 +96,5 @@ def procesar_op(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
         return https_fn.Response(json.dumps({
             "error": str(e),
-            "mensaje": "Error en el servidor: " + str(e)
+            "mensaje": "Error: " + str(e)
         }), status=500, headers=headers)

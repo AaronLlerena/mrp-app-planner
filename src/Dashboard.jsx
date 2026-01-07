@@ -267,7 +267,7 @@ function Dashboard() {
 
   const procesarImagen = async (imagenBase64) => {
     setProcesando(true);
-    setMensaje("Analizando OP y columna STOCK... ⚡");
+    setMensaje("Analizando Orden de Producción...  ⚡");
     addToLog("Subiendo imagen...");
     const startTime = performance.now();
 
