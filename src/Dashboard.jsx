@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase'; 
-import { collection, getDocs, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore'; 
+import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore'; 
 
 const API_URL = "https://procesar-op-ja33qfekia-uc.a.run.app";
 
@@ -140,6 +140,7 @@ function Dashboard() {
   const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.2 (Stock Column Mode)... OK`]);
   const [latency, setLatency] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
+  const [currentProductionId, setCurrentProductionId] = useState(null); // Nuevo estado para el ID de la producción actual
 
   const opsCargadas = ["TODAS", ...new Set(planProduccion.flatMap(row => row.opsAsociadas))];
   const ocsCargadas = ["TODAS", ...new Set(planProduccion.map(row => row.numeroOC).filter(Boolean))];
@@ -304,13 +305,26 @@ function Dashboard() {
     addToLog("Guardando en la Nube...");
     try {
         const nombreAuto = `Prod: ${opsCargadas.filter(o=>o!=='TODAS').join('+')}`;
-        await addDoc(collection(db, 'ProduccionesCombinadas'), {
+        const datosAGuardar = {
             nombre: nombreAuto,
             items: planProduccion,
             imagenes: imagenesSubidas,
             fecha: serverTimestamp()
-        });
-        alert("¡Guardado! ☁️");
+        };
+
+        if (currentProductionId) {
+            // Actualizar documento existente
+            const docRef = doc(db, 'ProduccionesCombinadas', currentProductionId);
+            await updateDoc(docRef, datosAGuardar);
+            alert("¡Producción actualizada! ✅");
+            addToLog(`Producción ${currentProductionId} actualizada.`);
+            setCurrentProductionId(null); // Limpiar el ID después de actualizar
+        } else {
+            // Crear nuevo documento
+            await addDoc(collection(db, 'ProduccionesCombinadas'), datosAGuardar);
+            alert("¡Guardado! ☁️");
+            addToLog("Nueva producción guardada.");
+        }
         window.location.reload();
     } catch (e) { alert(e.message); addToLog("Fallo al guardar."); }
     setLoading(false);
@@ -320,7 +334,8 @@ function Dashboard() {
       if(window.confirm("¿Cargar producción anterior?")) {
           setPlanProduccion(prod.items);
           setImagenesSubidas(prod.imagenes || []);
-          addToLog(`Cargado: ${prod.nombre}`);
+          setCurrentProductionId(prod.id); // Guardar el ID de la producción cargada
+          addToLog(`Cargado: ${prod.nombre} (ID: ${prod.id})`);
       }
   };
 
