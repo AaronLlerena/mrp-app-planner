@@ -41,22 +41,31 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
               <th style={{ padding: '8px', width:'80px' }}># OC</th>
               <th style={{ padding: '8px' }}>F. ENTREGA</th>
               <th style={{ padding: '8px' }}>ESTATUS</th>
+              <th style={{ padding: '8px' }}>DETALLE</th>
               <th style={{ padding: '8px' }}>ORIGEN</th>
             </tr>
           </thead>
           <tbody>
-            {datos.length === 0 ? <tr><td colSpan="8" style={{padding:'15px', textAlign:'center', color:'#aaa', fontStyle:'italic'}}>--- Sin datos ---</td></tr> : 
+            {datos.length === 0 ? <tr><td colSpan="9" style={{padding:'15px', textAlign:'center', color:'#aaa', fontStyle:'italic'}}>--- Sin datos ---</td></tr> : 
              datos.map((row, index) => {
                 const globalIndex = startIndex + index; 
                 const cantidadMostrar = filtroOP === "TODAS" ? row.cantidadTotal : (row.desglose[filtroOP] || 0);
                 
                 const stock = parseFloat(row.stockPlanta) || 0;
                 const calculoAutomatico = Math.max(0, cantidadMostrar - stock);
-                const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : calculoAutomatico;
+                
+                // Priorizamos el valor manual si existe, de lo contrario usamos el cálculo automático
+                // Si el cálculo automático es 0 (stock suficiente), el valor por defecto es 0
+                const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : (calculoAutomatico === 0 ? 0 : calculoAutomatico);
+                
+                // Es "verde" si el valor final a comprar es 0 o menor
                 const cubierto = parseFloat(valorAComprar) <= 0;
+                
+                // Si es verde y el estado era "Pendiente", lo ponemos como "Completo" automáticamente
+                const estadoFinal = (cubierto && row.estado === "Pendiente") ? "Completo" : row.estado;
 
                 return (
-                    <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: cubierto ? '#f0fff4' : 'white' }}>
+                    <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: cubierto ? '#c8e6c9' : 'white' }}>
                         <td style={{ padding: '5px' }}>
                             <input type="text" value={row.nombre} onChange={(e) => actualizarNombre(row.nombre, e.target.value)}
                                 id={`input-${globalIndex}-nombre`}
@@ -75,7 +84,7 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
                         </td>
                         
                         {/* A COMPRAR */}
-                        <td style={{ padding: '4px', backgroundColor: cubierto ? '#f0fff4' : '#e8f8f5' }}>
+                        <td style={{ padding: '4px', backgroundColor: cubierto ? '#c8e6c9' : '#e8f8f5' }}>
                             <input type="number" 
                                 value={valorAComprar} 
                                 onChange={(e) => actualizarCampo(row.nombre, 'aComprarManual', e.target.value)}
@@ -83,7 +92,8 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
                                 onKeyDown={(e) => handleKeyDown(e, globalIndex, 'acomprar')}
                                 style={{
                                     width:'100%', border:'1px solid #ddd', textAlign:'center', borderRadius:'3px', padding:'2px', fontSize:'12px',
-                                    color: cubierto ? '#27ae60' : '#c0392b', fontWeight:'bold'
+                                    color: cubierto ? '#27ae60' : '#c0392b', fontWeight:'bold',
+                                    background: 'white'
                                 }} 
                             />
                         </td>
@@ -108,14 +118,25 @@ const TablaGrupo = ({ titulo, datos, colorHeader, filtroOP, actualizarCampo, act
                         
                         {/* ESTATUS */}
                         <td style={{ padding: '4px' }}>
-                            <select value={row.estado} onChange={(e) => actualizarCampo(row.nombre, 'estado', e.target.value)}
-                                style={{border:'none', background: row.estado==='Completo'?'#2ecc71':(row.estado==='Pendiente'?'#95a5a6':'#3498db'), color:'white', borderRadius:'3px', padding:'2px 5px', fontSize:'10px', fontWeight:'bold'}}>
+                            <select value={estadoFinal} onChange={(e) => actualizarCampo(row.nombre, 'estado', e.target.value)}
+                                style={{border:'none', background: estadoFinal==='Completo'?'#2ecc71':(estadoFinal==='Pendiente'?'#95a5a6':'#3498db'), color:'white', borderRadius:'3px', padding:'2px 5px', fontSize:'10px', fontWeight:'bold'}}>
                                 <option value="Pendiente">Pendiente</option>
                                 <option value="OC enviada">OC enviada</option>
                                 <option value="Por entregar">Por entregar</option>
                                 <option value="Completo">Completo</option>
                             </select>
                         </td>
+
+                        {/* DETALLE */}
+                        <td style={{ padding: '4px' }}>
+                            {!cubierto && (
+                                <input type="text" value={row.detalle || ''} 
+                                    onChange={(e) => actualizarCampo(row.nombre, 'detalle', e.target.value)}
+                                    placeholder="Nota..."
+                                    style={{width:'100%', border:'1px solid #ddd', padding:'2px', borderRadius:'3px', fontSize:'11px'}} />
+                            )}
+                        </td>
+
                         <td style={{ padding: '6px', fontSize:'0.75em', color:'#aaa' }}>{row.opsAsociadas.join(", ")}</td>
                     </tr>
                 );
@@ -211,12 +232,16 @@ function Dashboard() {
       if(planProduccion.length === 0) return alert("No hay datos para exportar.");
       addToLog("Generando archivo XLS...");
       
-      const headers = ["Categoria\tNombre\tCantidad Total\tUnidad\tStock Planta\tA Comprar\tNumero OC\tEstado\tOPs Origen"];
+      const headers = ["Categoria\tNombre\tCantidad Total\tUnidad\tStock Planta\tA Comprar\tNumero OC\tEstado\tDetalle\tOPs Origen"];
       const rows = planProduccion.map(row => {
-          const aComprarCalculado = Math.max(0, row.cantidadTotal - (parseFloat(row.stockPlanta)||0));
-          const aComprarFinal = row.aComprarManual !== undefined ? row.aComprarManual : aComprarCalculado;
+          const stock = parseFloat(row.stockPlanta) || 0;
+          const calculoAutomatico = Math.max(0, row.cantidadTotal - stock);
+          const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : (calculoAutomatico === 0 ? 0 : calculoAutomatico);
+          const cubierto = parseFloat(valorAComprar) <= 0;
+          const estadoFinal = (cubierto && row.estado === "Pendiente") ? "Completo" : row.estado;
+          const detalleFinal = cubierto ? "" : (row.detalle || "");
           
-          return `${row.categoria}\t${row.nombre}\t${row.cantidadTotal}\t${row.unidad}\t${row.stockPlanta}\t${aComprarFinal}\t${row.numeroOC}\t${row.estado}\t${row.opsAsociadas.join('+')}`;
+          return `${row.categoria}\t${row.nombre}\t${row.cantidadTotal}\t${row.unidad}\t${row.stockPlanta}\t${valorAComprar}\t${row.numeroOC}\t${estadoFinal}\t${detalleFinal}\t${row.opsAsociadas.join('+')}`;
       });
       
       const xlsContent = [headers, ...rows].join("\n");
