@@ -6,8 +6,8 @@ const API_URL = "https://procesar-op-ja33qfekia-uc.a.run.app";
 
 const SOCIAL_LINKS = {
     linkedin: "https://www.linkedin.com/in/aaron-llerena", 
-    github: "https://github.com/",
-    researchgate: "https://www.researchgate.net/"
+    github: "https://github.com/AaronLlerena",
+    researchgate: "https://www.researchgate.net/profile/Aaron-Llerena-Arroyo"
 };
 
 // --- NAVEGACIÓN TECLADO ---
@@ -476,6 +476,9 @@ function Dashboard() {
                 <span style={{background:'#2c3e50', padding:'1px 6px', borderRadius:'8px', fontSize:'9px', border:'1px solid #34495e'}}>React</span>
                 <span style={{background:'#2c3e50', padding:'1px 6px', borderRadius:'8px', fontSize:'9px', border:'1px solid #34495e'}}>Firestore</span>
                 <span style={{background:'#2c3e50', padding:'1px 6px', borderRadius:'8px', fontSize:'9px', border:'1px solid #34495e'}}>GenAI</span>
+            </div>
+            <div style={{marginTop:'15px', color:'#7f8c8d', fontSize:'10px', fontFamily:'monospace', opacity:0.8}}>
+                Contacto: aaron.llerena@unmsm.edu.pe | +51 962596073
             </div>
         </div>
       </div>
