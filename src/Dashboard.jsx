@@ -150,6 +150,7 @@ function Dashboard() {
   const [planProduccion, setPlanProduccion] = useState([]);
   const [imagenesSubidas, setImagenesSubidas] = useState([]);
   const [historialGuardado, setHistorialGuardado] = useState([]);
+  const [opNames, setOpNames] = useState({}); // Nuevo: nombres de OPs
   
   const [loading, setLoading] = useState(false); 
   const [procesando, setProcesando] = useState(false); 
@@ -170,6 +171,29 @@ function Dashboard() {
 
   const opsCargadas = ["TODAS", ...new Set(planProduccion.flatMap(row => row.opsAsociadas))];
   const ocsCargadas = ["TODAS", ...new Set(planProduccion.map(row => row.numeroOC).filter(Boolean))];
+
+  const statsOP = React.useMemo(() => {
+    if (filtroOP === "TODAS") return null;
+    const itemsOP = planProduccion.filter(row => row.opsAsociadas.includes(filtroOP));
+    if (itemsOP.length === 0) return null;
+    
+    const completados = itemsOP.filter(row => {
+        const stock = parseFloat(row.stockPlanta) || 0;
+        const cantidadOP = row.desglose[filtroOP] || 0;
+        const calculoAuto = Math.max(0, cantidadOP - stock);
+        const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : (calculoAuto === 0 ? 0 : calculoAuto);
+        const cubierto = parseFloat(valorAComprar) <= 0;
+        // Se considera completado si está cubierto o si el estado se marcó manualmente como Completo
+        return cubierto || row.estado === "Completo";
+    }).length;
+    
+    return {
+        total: itemsOP.length,
+        completados,
+        porcentaje: Math.round((completados / itemsOP.length) * 100),
+        nombre: opNames[filtroOP] || "Sin nombre"
+    };
+  }, [planProduccion, filtroOP, opNames]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
@@ -219,6 +243,7 @@ function Dashboard() {
       if(window.confirm("¿Estás seguro de borrar todo? Se perderán los datos no guardados.")) {
           setPlanProduccion([]);
           setImagenesSubidas([]); 
+          setOpNames({});
           setMensaje("");
           addToLog("Sistema limpiado. Memoria vacía.");
       }
@@ -322,8 +347,14 @@ function Dashboard() {
 
       addToLog(`Datos recibidos. Latencia: ${Math.round(endTime - startTime)}ms`);
       
+      const opId = data.datos.numero_op || "S/N";
+      const opName = window.prompt(`OP ${opId} detectada. ¿Qué nombre (detalle) deseas asignarle?`, "Sin nombre");
+      if (opName) {
+        setOpNames(prev => ({ ...prev, [opId]: opName }));
+      }
+      
       agregarAlPlan(data.datos, imagenBase64);
-      setMensaje(`✅ OP ${data.datos.numero_op} OK!`); 
+      setMensaje(`✅ OP ${opId} OK!`); 
       addToLog(`Éxito: Se fusionaron ${data.datos.items?.length || 0} items.`);
       
     } catch (error) {
@@ -347,6 +378,7 @@ function Dashboard() {
             nombre: nombreAuto,
             items: planProduccion,
             imagenes: imagenesSubidas,
+            opNames: opNames,
             fecha: serverTimestamp()
         };
 
@@ -372,6 +404,7 @@ function Dashboard() {
       if(window.confirm("¿Cargar producción anterior?")) {
           setPlanProduccion(prod.items);
           setImagenesSubidas(prod.imagenes || []);
+          setOpNames(prod.opNames || {});
           setCurrentProductionId(prod.id); // Guardar el ID de la producción cargada
           addToLog(`Cargado: ${prod.nombre} (ID: ${prod.id})`);
       }
@@ -452,7 +485,7 @@ function Dashboard() {
       </div>
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
-        <div style={{display:'grid', gridTemplateColumns: '2fr 1fr', gap:'15px', marginBottom:'15px'}}>
+        <div style={{display:'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}>
             <div style={{background:'white', padding:'10px', borderRadius:'8px', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', display:'flex', flexDirection:'column', justifyContent:'center'}}>
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', alignItems:'center'}}>
                     <strong style={{color:'#2c3e50', fontSize:'13px'}}>📷 OPs Activas: {imagenesSubidas.length}</strong>
@@ -471,6 +504,37 @@ function Dashboard() {
                     ))}
                 </div>
             </div>
+
+            {/* MINI DASHBOARD COMPACTO */}
+            <div style={{background:'linear-gradient(135deg, #2c3e50, #34495e)', padding:'10px', borderRadius:'8px', color:'white', display:'flex', flexDirection:'column', justifyContent:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.1)'}}>
+                {!statsOP ? (
+                    <div style={{textAlign:'center', opacity:0.6, fontSize:'12px', fontStyle:'italic'}}>
+                        Selecciona una OP para ver su avance...
+                    </div>
+                ) : (
+                    <>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'8px'}}>
+                            <div style={{maxWidth:'70%'}}>
+                                <div style={{fontSize:'10px', color:'#00d4ff', fontWeight:'bold', textTransform:'uppercase'}}>PROGRESO DE ORDEN</div>
+                                <div style={{fontSize:'14px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                    OP {filtroOP} - {statsOP.nombre}
+                                </div>
+                            </div>
+                            <div style={{fontSize:'22px', fontWeight:'800', color: statsOP.porcentaje === 100 ? '#2ecc71' : '#f1c40f'}}>
+                                {statsOP.porcentaje}%
+                            </div>
+                        </div>
+                        <div style={{height:'8px', background:'rgba(255,255,255,0.1)', borderRadius:'10px', overflow:'hidden', marginBottom:'8px'}}>
+                            <div style={{width: `${statsOP.porcentaje}%`, height:'100%', background: statsOP.porcentaje === 100 ? '#2ecc71' : '#3498db', transition:'width 0.5s ease'}}></div>
+                        </div>
+                        <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', opacity:0.8}}>
+                            <span>Items: <strong>{statsOP.completados} / {statsOP.total}</strong></span>
+                            <span>{statsOP.porcentaje === 100 ? '✅ COMPLETADO' : '⏳ EN PROCESO'}</span>
+                        </div>
+                    </>
+                )}
+            </div>
+
             <div style={{background:'#1e1e1e', padding:'8px', borderRadius:'8px', color:'#00ff00', fontFamily:'monospace', fontSize:'10px', height:'105px', overflowY:'auto', border:'1px solid #333', boxShadow:'inset 0 0 10px rgba(0,0,0,0.5)'}}>
                 <div style={{borderBottom:'1px solid #333', paddingBottom:'2px', marginBottom:'2px', color:'#fff', fontWeight:'bold', fontSize:'9px'}}>TERMINAL_LOG</div>
                 {activityLog.map((line, i) => <div key={i} style={{opacity: i===0?1:0.7, whiteSpace: 'nowrap', lineHeight:'1.3'}}>{line}</div>)}
@@ -480,7 +544,13 @@ function Dashboard() {
         <div style={{background:'#34495e', padding:'8px 15px', borderRadius:'6px', marginBottom:'15px', display:'flex', gap:'20px', alignItems:'center', color:'white', fontSize:'13px'}}>
              <span style={{fontWeight:'bold'}}>⚡ FILTROS:</span>
              <label style={{color:'#bdc3c7'}}>Orden Producción (OP): 
-                <select value={filtroOP} onChange={(e)=>setFiltroOP(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>{opsCargadas.map(op=><option key={op} value={op}>{op}</option>)}</select>
+                <select value={filtroOP} onChange={(e)=>setFiltroOP(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>
+                    {opsCargadas.map(op=>(
+                        <option key={op} value={op}>
+                            {op === "TODAS" ? op : `OP ${op} ${opNames[op] ? `- ${opNames[op]}` : ""}`}
+                        </option>
+                    ))}
+                </select>
              </label>
              <label style={{color:'#bdc3c7'}}>Orden Compra (OC): 
                 <select value={filtroOC} onChange={(e)=>setFiltroOC(e.target.value)} style={{marginLeft:'5px', padding:'3px', borderRadius:'3px', color:'#333', fontSize:'12px'}}>{ocsCargadas.map(oc=><option key={oc} value={oc}>{oc || "N/A"}</option>)}</select>
