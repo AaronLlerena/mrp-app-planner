@@ -157,6 +157,7 @@ function Dashboard() {
   const [mensaje, setMensaje] = useState("");
   const [filtroOP, setFiltroOP] = useState("TODAS"); 
   const [filtroOC, setFiltroOC] = useState("TODAS");
+  const [opSeleccionadaMini, setOpSeleccionadaMini] = useState(null); // Nuevo: OP seleccionada para el Mini Dashboard
   const [imagenModal, setImagenModal] = useState(null);
   
   const [activityLog, setActivityLog] = useState([`> [SISTEMA] Iniciando Smart Planner AI v3.2 (Stock Column Mode)... OK`]);
@@ -173,17 +174,18 @@ function Dashboard() {
   const ocsCargadas = ["TODAS", ...new Set(planProduccion.map(row => row.numeroOC).filter(Boolean))];
 
   const statsOP = React.useMemo(() => {
-    if (filtroOP === "TODAS") return null;
-    const itemsOP = planProduccion.filter(row => row.opsAsociadas.includes(filtroOP));
+    // Ahora usamos opSeleccionadaMini en lugar de filtroOP
+    if (!opSeleccionadaMini || opSeleccionadaMini === "TODAS") return null;
+    const targetOP = opSeleccionadaMini;
+    const itemsOP = planProduccion.filter(row => row.opsAsociadas.includes(targetOP));
     if (itemsOP.length === 0) return null;
     
     const completados = itemsOP.filter(row => {
         const stock = parseFloat(row.stockPlanta) || 0;
-        const cantidadOP = row.desglose[filtroOP] || 0;
+        const cantidadOP = row.desglose[targetOP] || 0;
         const calculoAuto = Math.max(0, cantidadOP - stock);
         const valorAComprar = row.aComprarManual !== undefined ? row.aComprarManual : (calculoAuto === 0 ? 0 : calculoAuto);
         const cubierto = parseFloat(valorAComprar) <= 0;
-        // Se considera completado si está cubierto o si el estado se marcó manualmente como Completo
         return cubierto || row.estado === "Completo";
     }).length;
     
@@ -191,9 +193,10 @@ function Dashboard() {
         total: itemsOP.length,
         completados,
         porcentaje: Math.round((completados / itemsOP.length) * 100),
-        nombre: opNames[filtroOP] || "Sin nombre"
+        nombre: opNames[targetOP] || "Sin nombre",
+        id: targetOP
     };
-  }, [planProduccion, filtroOP, opNames]);
+  }, [planProduccion, opSeleccionadaMini, opNames]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
@@ -406,6 +409,11 @@ function Dashboard() {
           setImagenesSubidas(prod.imagenes || []);
           setOpNames(prod.opNames || {});
           setCurrentProductionId(prod.id); // Guardar el ID de la producción cargada
+          
+          // Si hay OPs, seleccionamos la primera por defecto para el mini dashboard
+          const firstOP = prod.items.flatMap(row => row.opsAsociadas)[0];
+          if (firstOP) setOpSeleccionadaMini(firstOP);
+          
           addToLog(`Cargado: ${prod.nombre} (ID: ${prod.id})`);
       }
   };
@@ -468,9 +476,31 @@ function Dashboard() {
         </div>
         
         <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
-            <select onChange={(e)=>e.target.value && cargarProduccion(JSON.parse(e.target.value))} style={{padding:'6px', borderRadius:'4px', border:'none', background:'#34495e', color:'white', cursor:'pointer', fontSize:'12px'}}>
-                <option value="">📂 Historial...</option>
-                {historialGuardado.map(h=><option key={h.id} value={JSON.stringify(h)}>{h.nombre}</option>)}
+            <select 
+                value={opSeleccionadaMini || ""} 
+                onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith('{')) {
+                        cargarProduccion(JSON.parse(val));
+                    } else {
+                        setOpSeleccionadaMini(val);
+                    }
+                }} 
+                style={{padding:'6px', borderRadius:'4px', border:'none', background:'#34495e', color:'white', cursor:'pointer', fontSize:'12px'}}
+            >
+                <option value="">📂 Historial / OPs...</option>
+                <optgroup label="📦 Producciones Guardadas" style={{background:'#2c3e50'}}>
+                    {historialGuardado.map(h => <option key={h.id} value={JSON.stringify(h)}>{h.nombre}</option>)}
+                </optgroup>
+                {opsCargadas.length > 1 && (
+                    <optgroup label="📋 OPs en Memoria" style={{background:'#2c3e50'}}>
+                        {opsCargadas.filter(op => op !== "TODAS").map(op => (
+                            <option key={`mem-${op}`} value={op}>
+                                OP {op} {opNames[op] ? `- ${opNames[op]}` : ""}
+                            </option>
+                        ))}
+                    </optgroup>
+                )}
             </select>
             <button onClick={exportarXLS} style={{background:'#f39c12', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
                 📥 Exportar XLS
@@ -509,7 +539,7 @@ function Dashboard() {
             <div style={{background:'linear-gradient(135deg, #2c3e50, #34495e)', padding:'10px', borderRadius:'8px', color:'white', display:'flex', flexDirection:'column', justifyContent:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.1)'}}>
                 {!statsOP ? (
                     <div style={{textAlign:'center', opacity:0.6, fontSize:'12px', fontStyle:'italic'}}>
-                        Selecciona una OP para ver su avance...
+                        Selecciona una OP en el menú superior para ver su avance...
                     </div>
                 ) : (
                     <>
@@ -517,7 +547,7 @@ function Dashboard() {
                             <div style={{maxWidth:'70%'}}>
                                 <div style={{fontSize:'10px', color:'#00d4ff', fontWeight:'bold', textTransform:'uppercase'}}>PROGRESO DE ORDEN</div>
                                 <div style={{fontSize:'14px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                                    OP {filtroOP} - {statsOP.nombre}
+                                    OP {statsOP.id} - {statsOP.nombre}
                                 </div>
                             </div>
                             <div style={{fontSize:'22px', fontWeight:'800', color: statsOP.porcentaje === 100 ? '#2ecc71' : '#f1c40f'}}>
