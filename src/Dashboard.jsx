@@ -142,6 +142,11 @@ function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
   const [currentProductionId, setCurrentProductionId] = useState(null); // Nuevo estado para el ID de la producción actual
 
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
+  const [currentPin, setCurrentPin] = useState("");
+  const [actionToPerform, setActionToPerform] = useState(null);
+  const CORRECT_PIN = "1234"; // PIN hardcodeado
+
   const opsCargadas = ["TODAS", ...new Set(planProduccion.flatMap(row => row.opsAsociadas))];
   const ocsCargadas = ["TODAS", ...new Set(planProduccion.map(row => row.numeroOC).filter(Boolean))];
 
@@ -189,13 +194,17 @@ function Dashboard() {
     addToLog("Imagen eliminada de la lista visual.");
   };
   
-  const limpiarTodo = () => {
+  const limpiarTodoReal = () => {
       if(window.confirm("¿Estás seguro de borrar todo? Se perderán los datos no guardados.")) {
           setPlanProduccion([]);
           setImagenesSubidas([]); 
           setMensaje("");
           addToLog("Sistema limpiado. Memoria vacía.");
       }
+  };
+
+  const limpiarTodo = () => {
+    requestPin("limpiar");
   };
 
   const exportarXLS = () => {
@@ -299,7 +308,11 @@ function Dashboard() {
     setProcesando(false);
   };
 
-  const guardarProduccion = async () => {
+  const guardarProduccion = () => {
+    requestPin("guardar");
+  };
+
+  const guardarProduccionReal = async () => {
     if (planProduccion.length === 0) return alert("El plan está vacío.");
     setLoading(true);
     addToLog("Guardando en la Nube...");
@@ -356,6 +369,26 @@ function Dashboard() {
       }
   };
 
+  const verifyPin = () => {
+    if (currentPin === CORRECT_PIN) {
+        setShowPinPrompt(false);
+        setCurrentPin("");
+        if (actionToPerform === "guardar") {
+            guardarProduccionReal();
+        } else if (actionToPerform === "limpiar") {
+            limpiarTodoReal();
+        }
+    } else {
+        alert("PIN incorrecto. Inténtalo de nuevo.");
+        setCurrentPin("");
+    }
+  };
+
+  const requestPin = (action) => {
+    setActionToPerform(action);
+    setShowPinPrompt(true);
+  };
+
   const datosFiltrados = planProduccion.filter(row => {
       const pasaOP = filtroOP === "TODAS" || row.opsAsociadas.includes(filtroOP);
       const pasaOC = filtroOC === "TODAS" || row.numeroOC === filtroOC;
@@ -384,10 +417,10 @@ function Dashboard() {
             <button onClick={exportarXLS} style={{background:'#f39c12', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
                 📥 Exportar XLS
             </button>
-            <button onClick={guardarProduccion} style={{background:'#27ae60', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
+            <button onClick={() => requestPin("guardar")} style={{background:'#27ae60', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>
                 💾 Nube
             </button>
-            <button onClick={limpiarTodo} style={{background:'#c0392b', color:'white', border:'none', padding:'6px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}} title="Borrar Todo">
+            <button onClick={() => requestPin("limpiar")} style={{background:'#c0392b', color:'white', border:'none', padding:'6px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}} title="Borrar Todo">
                 🗑️
             </button>
         </div>
@@ -453,6 +486,90 @@ function Dashboard() {
       </div>
 
       {imagenModal && <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.9)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}} onClick={()=>setImagenModal(null)}><img src={imagenModal} style={{maxHeight:'90%', maxWidth:'90%', borderRadius:'5px'}} /></div>}
+      
+      {showPinPrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: '#333',
+            padding: '25px',
+            borderRadius: '10px',
+            boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
+            textAlign: 'center',
+            color: 'white',
+            width: '300px'
+          }}>
+            <h3 style={{ marginTop: '0', color: '#00d4ff' }}>Ingresa tu PIN</h3>
+            <input
+              type="password"
+              maxLength="4"
+              value={currentPin}
+              onChange={(e) => setCurrentPin(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  verifyPin();
+                }
+              }}
+              style={{
+                width: 'calc(100% - 20px)',
+                padding: '10px',
+                margin: '15px 0',
+                borderRadius: '5px',
+                border: '1px solid #555',
+                background: '#444',
+                color: 'white',
+                fontSize: '16px',
+                textAlign: 'center'
+              }}
+              placeholder="****"
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
+              <button
+                onClick={verifyPin}
+                style={{
+                  background: '#27ae60',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  flexGrow: 1
+                }}
+              >
+                Verificar
+              </button>
+              <button
+                onClick={() => { setShowPinPrompt(false); setCurrentPin(""); setActionToPerform(null); }}
+                style={{
+                  background: '#c0392b',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  flexGrow: 1
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
